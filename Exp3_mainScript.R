@@ -1,0 +1,679 @@
+##function to read in a ABimage mem datafile and return all key variables 
+## in four data frames:
+# practice AB
+# practice Mem
+# AB 
+# Mem
+library(ggpubr)
+
+library(kableExtra)
+library(tidyverse)
+library(lme4)
+library(lmerTest)
+repoPath = "G:/My Drive/GitHub/imageAB_submission"
+source(paste0(repoPath, '/dualSingleHelperFuncs.R'))
+
+path = paste0(repoPath, '/Exp3_rawData') #experiment for AB behavioral paper
+figsOut = paste0(repoPath, '/prolificDatFigs')
+file_list <- list.files(path = path, full.names = TRUE)
+
+bossNorms = read.csv(paste0(repoPath, '/BOSS_norms.csv')) %>% 
+  select(c("FILENAME", 'Fam_Mean'))
+bossNorms2 = read.csv(paste0(repoPath, '/BOSS_norms2.csv'))%>% 
+  select(c("FILENAME", 'Fam_Mean'))
+
+subSums = data.frame()
+numConf = 3 #how many confidence ratings will the scale be reduced to? 6 = no compression
+GrandConf = data.frame('count' = rep(0,numConf*9), 
+                     'conf' = rep(seq(1,numConf), 9), 
+                     'trialType' = c(rep('lag1D', numConf),
+                                     rep('lag1S', numConf),
+                                     rep('blink',numConf),
+                                     rep('noBlink',numConf),
+                                     rep('lag5D', numConf), 
+                                     rep('lag5S', numConf), 
+                                     rep('oldD', numConf),
+                                     rep('oldS', numConf),
+                                     rep('new', numConf)))
+
+payments = data.frame()
+for(sub in 1:length(file_list)){
+  curSub = file_list[sub]
+  test = readABmemFile(curSub, numConf, bossNorms, bossNorms2)
+  subDat = test[[2]]
+  if(length(subDat)>=1){
+  #I want the overall lag 1 v. lag 5 v. novel for dual target v. single target
+  #find memBlocks
+    memBlocks = c()
+    for(bb in 1:length(subDat)){
+      if(grepl('MEM',subDat[[bb]]$blkName[1])){
+        memBlocks = c(memBlocks, bb)
+      }
+    }
+    dat = subDat[[memBlocks[1]]]
+    numConf = max(dat$conf)
+  allConf = data.frame('count' = rep(0,numConf*9), 
+                       'conf' = rep(seq(1,numConf), 9), 
+                       'trialType' = c(rep('lag1D', numConf),
+                                       rep('lag1S', numConf),
+                                       rep('blink',numConf),
+                                       rep('noBlink',numConf),
+                                       rep('lag5D', numConf), 
+                                       rep('lag5S', numConf), 
+                                       rep('oldD', numConf),
+                                       rep('oldS', numConf),
+                                       rep('new', numConf)))
+  
+ dTypes = c('lag1D', 'blink', 'noBlink', 'lag5D', 'oldD', 'new')
+ sTypes = c('lag1S', 'lag5S', 'oldS', 'new')
+  
+  
+  for(blk in 1:length(memBlocks)){
+    dat = subDat[[memBlocks[blk]]]
+    if(dat$dualTarget[1]){ #this is a dual target block! 
+      types = dTypes
+      for(tt in 1:length(types)){
+        for(cc in 1:numConf){
+          if(types[tt]=='lag1D'){
+          allConf$count[allConf$conf==cc & allConf$trialType==types[tt]] = 
+            allConf$count[allConf$conf==cc & allConf$trialType==types[tt]] + 
+            dat$count[dat$conf==cc & dat$trialType=='blink'] + 
+            dat$count[dat$conf==cc & dat$trialType=='noBlink']
+          }
+          if(types[tt]=='blink'){
+            allConf$count[allConf$conf==cc & allConf$trialType==types[tt]] = 
+              allConf$count[allConf$conf==cc & allConf$trialType==types[tt]] + 
+              dat$count[dat$conf==cc & dat$trialType=='blink']
+          }
+          if(types[tt]=='noBlink'){
+            allConf$count[allConf$conf==cc & allConf$trialType==types[tt]] = 
+              allConf$count[allConf$conf==cc & allConf$trialType==types[tt]] + 
+              dat$count[dat$conf==cc & dat$trialType=='noBlink']
+          }
+          if(types[tt]=='lag5D'){
+            allConf$count[allConf$conf==cc & allConf$trialType==types[tt]] = 
+              allConf$count[allConf$conf==cc & allConf$trialType==types[tt]] + 
+              dat$count[dat$conf==cc & dat$trialType=='lag5']
+          }
+          if(types[tt]=='oldD'){
+            allConf$count[allConf$conf==cc & allConf$trialType==types[tt]] = 
+              allConf$count[allConf$conf==cc & allConf$trialType==types[tt]] + 
+              dat$count[dat$conf==cc & dat$trialType=='blink'] + 
+              dat$count[dat$conf==cc & dat$trialType=='noBlink']+ 
+              dat$count[dat$conf==cc & dat$trialType=='lag5']
+          }
+          if(types[tt]=='new'){
+            allConf$count[allConf$conf==cc & allConf$trialType==types[tt]] = 
+              allConf$count[allConf$conf==cc & allConf$trialType==types[tt]] + 
+              dat$count[dat$conf==cc & dat$trialType=='novel']
+          }
+        }
+      }
+    }else{ #this is a single target block
+      types = sTypes
+      for(tt in 1:length(types)){
+        for(cc in 1:numConf){
+          if(types[tt]=='lag1S'){
+            allConf$count[allConf$conf==cc & allConf$trialType==types[tt]] = 
+              allConf$count[allConf$conf==cc & allConf$trialType==types[tt]] + 
+              dat$count[dat$conf==cc & dat$trialType=='blink'] + 
+              dat$count[dat$conf==cc & dat$trialType=='noBlink']
+          }
+          if(types[tt]=='lag5S'){
+            allConf$count[allConf$conf==cc & allConf$trialType==types[tt]] = 
+              allConf$count[allConf$conf==cc & allConf$trialType==types[tt]] + 
+              dat$count[dat$conf==cc & dat$trialType=='lag5']
+          }
+          if(types[tt]=='oldS'){
+            allConf$count[allConf$conf==cc & allConf$trialType==types[tt]] = 
+              allConf$count[allConf$conf==cc & allConf$trialType==types[tt]] + 
+              dat$count[dat$conf==cc & dat$trialType=='blink'] + 
+              dat$count[dat$conf==cc & dat$trialType=='noBlink']+ 
+              dat$count[dat$conf==cc & dat$trialType=='lag5']
+          }
+          if(types[tt]=='new'){
+            allConf$count[allConf$conf==cc & allConf$trialType==types[tt]] = 
+              allConf$count[allConf$conf==cc & allConf$trialType==types[tt]] + 
+              dat$count[dat$conf==cc & dat$trialType=='novel']
+          }
+        }
+      }
+      
+    }
+    
+  }
+  
+  #fit most granular version of model: 
+  # uvsdDETAIL = allConf %>% filter(trialType != 'oldS', trialType != 'oldD',
+  #                                 trialType != 'lag1D') %>% 
+  #   fitUVSD()
+  uvsdDETAIL = allConf %>% filter(trialType == 'blink' | 
+                                    trialType == 'noBlink' | 
+                                    trialType == 'new') %>% 
+    fitUVSD()
+  
+  #fit medium version of model: 
+  uvsdMID = allConf %>% filter(trialType != 'oldS' & trialType != 'oldD' &
+                                     trialType != 'blink', trialType != 'noBlink') %>% 
+                fitUVSD()
+  
+  #fit basic version of model: 
+  uvsdBASIC = allConf %>% filter(trialType == 'oldS' | trialType == 'oldD' |
+                                 trialType == 'new') %>% 
+    fitUVSD()
+  
+
+  
+  test[[1]][1,'detail_chi'] = uvsdDETAIL$chi
+  test[[1]][1,'detail_chiP'] = uvsdDETAIL$chiP
+  test[[1]][1,'detail_var'] = uvsdDETAIL$varExp
+  
+  test[[1]][1,'mid_chi'] = uvsdMID$chi
+  test[[1]][1,'mid_chiP'] = uvsdMID$chiP
+  test[[1]][1,'mid_var'] = uvsdMID$varExp
+  test[[1]][1,'basic_chi'] = uvsdBASIC$chi
+  test[[1]][1,'basic_chiP'] = uvsdBASIC$chiP
+  test[[1]][1,'basic_var'] = uvsdBASIC$varExp
+  
+  test[[1]][1,'dualLag1_d'] = uvsdMID$lag1D_d
+  test[[1]][1,'dualLag5_d'] = uvsdMID$lag5D_d
+  test[[1]][1,'dualLag1_s'] = uvsdMID$lag1D_s
+  test[[1]][1,'dualLag5_s'] = uvsdMID$lag5D_s
+  test[[1]][1,'dualLag1_acc'] = sum(allConf$count[allConf$conf>3 & allConf$trialType=='lag1D']) / 
+                                sum(allConf$count[allConf$trialType=='lag1D'])
+  test[[1]][1,'dualLag1_count'] = sum(allConf$count[allConf$trialType=='lag1D'])
+  test[[1]][1,'dualLag5_acc'] = sum(allConf$count[allConf$conf>3 & allConf$trialType=='lag5D']) / 
+                                sum(allConf$count[allConf$trialType=='lag5D'])
+  test[[1]][1,'dualLag5_count'] = sum(allConf$count[allConf$trialType=='lag5D'])
+ 
+  if("blink_d" %in% names(uvsdDETAIL)){
+    test[[1]][1,'blink_d'] = uvsdDETAIL$blink_d
+    test[[1]][1,'blink_s'] = uvsdDETAIL$blink_s
+    test[[1]][1,'blink_acc'] = sum(allConf$count[allConf$conf>3 & allConf$trialType=='blink']) / 
+                               sum(allConf$count[allConf$trialType=='blink'])
+    test[[1]][1,'blink_count'] = sum(allConf$count[allConf$trialType=='blink'])
+  } else { 
+    test[[1]][1,'blink_d'] = NA
+    test[[1]][1,'blink_s'] = NA
+    test[[1]][1,'blink_acc'] = NA
+    test[[1]][1,'blink_count'] = NA
+  }
+  if("noBlink_d" %in% names(uvsdDETAIL)){
+    test[[1]][1,'noBlink_d'] = uvsdDETAIL$noBlink_d
+    test[[1]][1,'noBlink_s'] = uvsdDETAIL$noBlink_s
+    test[[1]][1,'noBlink_acc'] = sum(allConf$count[allConf$conf>3 & allConf$trialType=='noBlink']) / 
+                                 sum(allConf$count[allConf$trialType=='noBlink'])
+    test[[1]][1,'noBlink_count'] = sum(allConf$count[allConf$trialType=='noBlink'])
+  } else {
+    test[[1]][1,'noBlink_d'] = NA
+    test[[1]][1,'noBlink_s'] = NA
+    test[[1]][1,'noBlink_acc'] = NA
+    test[[1]][1,'noBlink_count'] = NA
+  }
+  test[[1]][1,'singleLag1_d'] = uvsdMID$lag1S_d
+  test[[1]][1,'singleLag5_d'] = uvsdMID$lag5S_d
+  test[[1]][1,'singleLag1_s'] = uvsdMID$lag1S_s
+  test[[1]][1,'singleLag5_s'] = uvsdMID$lag5S_s
+  test[[1]][1,'singleLag1_acc'] = sum(allConf$count[allConf$conf>3 & allConf$trialType=='lag1S']) / 
+    sum(allConf$count[allConf$trialType=='lag1S'])
+  test[[1]][1,'singleLag5_acc'] = sum(allConf$count[allConf$conf>3 & allConf$trialType=='lag5S']) / 
+    sum(allConf$count[allConf$trialType=='lag5S'])
+  test[[1]][1,'singleLag1_count'] = sum(allConf$count[allConf$trialType=='lag1S'])
+  test[[1]][1,'singleLag5_count'] = sum(allConf$count[allConf$trialType=='lag5S'])
+  
+  test[[1]][1, 'dual_d'] = uvsdBASIC$oldD_d
+  test[[1]][1, 'single_d'] = uvsdBASIC$oldS_d
+  test[[1]][1, 'dual_s'] = uvsdBASIC$oldD_s
+  test[[1]][1, 'single_s'] = uvsdBASIC$oldS_s
+  test[[1]][1,'dual_acc'] = sum(allConf$count[allConf$conf>3 & allConf$trialType=='oldD']) / 
+    sum(allConf$count[allConf$trialType=='oldD'])
+  test[[1]][1,'single_acc'] = sum(allConf$count[allConf$conf>3 & allConf$trialType=='oldS']) / 
+    sum(allConf$count[allConf$trialType=='oldS'])
+  test[[1]][1,'dual_count'] = sum(allConf$count[allConf$trialType=='oldD'])
+  test[[1]][1,'single_count'] = sum(allConf$count[allConf$trialType=='oldS'])
+  
+  test[[1]][1, 'novel_d'] = 0
+  test[[1]][1, 'novel_s'] = 1
+  test[[1]][1,'novel_acc'] = sum(allConf$count[allConf$conf<=3 & allConf$trialType=='new']) / 
+    sum(allConf$count[allConf$trialType=='new'])
+  test[[1]][1,'novel_count'] = sum(allConf$count[allConf$trialType=='new'])
+  
+  confTypes = unique(allConf$trialType)
+  for(curType in confTypes){
+    tmpConf = allConf %>% filter(trialType == curType)
+    for(ratingi in 1:numConf){
+      test[[1]][1, paste0(curType, ratingi)] = tmpConf$count[ratingi] / 
+                                                sum(tmpConf$count)
+    }
+  }
+  
+  GrandConf$count = GrandConf$count + allConf$count
+  
+  
+  plotDat <- allConf %>% group_by(trialType) %>% 
+    reframe(prop = count / sum(count), conf = conf)
+  outPlot <- ggplot(plotDat, aes(x = conf, y = prop, color = trialType, fill = trialType)) + 
+    geom_bar(stat = 'identity', position = 'dodge')+ 
+    ggtitle(paste(test[[1]]$ID, 'allData'))
+  png(paste(figsOut, '\\allConf_ConfRatings_', test[[1]]$ID, '.png',sep=''),         # File name
+      width=1024, height=768)
+  print(outPlot)
+  dev.off()
+  
+  
+  
+  
+  
+  
+  subSums = rbind(subSums, test[[1]])
+
+  print(paste(test[[1]]$ID, sum(test[[1]][grepl('pnts', names(subSums))])/250))
+  
+  payments = rbind(payments, data.frame('ID' = test[[1]]$ID, 'bonus' = sum(test[[1]][grepl('pnts', names(subSums))])/250))
+  } else {
+    payments = rbind(payments, data.frame('ID' = test[[1]]$ID, 'bonus' = 99999))
+  }
+  
+}
+demoInfo <- subSums %>% select(ID, date, age, sex, nativeLang)
+
+
+
+##########  get the AB mag overall ####################################
+subSums$ABmag = rowMeans(subSums[,grepl("AB_lag1_T2T1", names(subSums)) & 
+          !grepl("prac", names(subSums))] - 
+  subSums[,grepl("AB_lag5_T2T1", names(subSums)) & 
+            !grepl("prac", names(subSums))],
+  na.rm = T)
+
+
+
+
+##########       AB mag blockwise #####################################
+for( ii in c(1,3,5)){
+  subSums[,paste0('ABmag_', ii)] = subSums[,paste0(ii,"_AB_lag1_T2T1")] -  
+    subSums[,paste0(ii,"_AB_lag5_T2T1")]
+}
+
+subSums_long <- subSums %>%
+  pivot_longer(cols = c('ABmag_1', 'ABmag_3', 'ABmag_5'), 
+               names_to = 'block', values_to = 'new_ABmag')
+
+subSums_long %>% ggplot(aes(x = block, y = new_ABmag, group = ID)) + geom_line()
+
+
+## data cleaning same as in previous experiment ##################################
+
+subSums$T2FA = rowMeans(subSums[,grepl('T2FA', names(subSums))], na.rm = T)
+subSums$lag1_T2T1 = rowMeans(subSums[,grepl('lag1_T2T1', names(subSums))], na.rm = T)
+
+
+#must have positive T2|T1 detection above T2 FA rate
+# subSums = subSums[subSums$lag1_T2T1 - subSums$T2FA > 0,]
+
+T1ONLY <- subSums[, (grepl("_T1", names(subSums)) & 
+                       !grepl("FA", names(subSums)) & 
+                       !grepl("prac", names(subSums)) &
+                       !grepl("Fam", names(subSums)) ) | 
+          grepl("ID", names(subSums))]
+
+#implement criterion 1:
+subSums = subSums[rowMeans(T1ONLY[,grepl("T1", names(T1ONLY))])>.5, ]
+#implement criterion 2:
+subSums = subSums[rowMeans(subSums[c("dual_d", "single_d")]) >.1, ]
+#implement criterion 3:
+T2ONLY <- subSums[, (grepl("lag1_T2", names(subSums)) & 
+                       !grepl("FA", names(subSums)) & 
+                       !grepl("prac", names(subSums)) ) | 
+                    grepl("ID", names(subSums))]
+subSums = subSums[rowMeans(T2ONLY[,grepl("T2", names(T2ONLY))], na.rm =T) > .5, ]
+
+
+#######Stimulus familiarity effects #############################
+subSums %>% select(names(subSums)[grepl('_T1.*Fam', names(subSums)) | grepl("ID", names(subSums))]) %>%
+  pivot_longer(cols = names(.)[grepl('Fam', names(.))], 
+               names_pattern = "^(\\d+)_AB_T1(.*)",
+               names_to = c('block', 'type'),
+               values_to = 'fam') -> famTable
+famTable %>% filter(as.numeric(block) %% 2==1) %>% group_by(type, ID) %>%
+  summarize(meanFam = mean(fam)) -> famTable
+
+t.test(famTable$meanFam[famTable$type=='blinkFam'] - 
+         famTable$meanFam[famTable$type == 'nonblinkFam'])
+
+mean(famTable$meanFam[famTable$type=='blinkFam'], na.rm = T)
+mean(famTable$meanFam[famTable$type == 'nonblinkFam'])
+
+
+#number of good fits for each model: 
+
+
+sum(subSums$basic_chiP>.05)
+sum(subSums$mid_chiP>.05)
+
+#eliminate participants with less than 80% variance explained: 
+subSums = subSums[subSums$basic_var>.8,]
+subSums = subSums[subSums$mid_var>.8,]
+
+min(subSums$basic_var[subSums$basic_chiP>.05])
+min(subSums$mid_var[subSums$mid_chiP>.05])
+min(subSums$basic_var)
+min(subSums$mid_var)
+
+
+
+# grand conf: ##############################################
+plotDat <- GrandConf %>% group_by(trialType) %>% 
+  reframe(prop = count / sum(count), conf = conf) %>%
+  filter(trialType == 'blink' | trialType == 'noBlink' | trialType == 'new')
+ggplot(plotDat, aes(x = conf, y = prop, color = trialType, fill = trialType)) + 
+  geom_bar(stat = 'identity', position = 'dodge')
+
+blinkNoBlinkConf = GrandConf %>% filter(trialType == 'blink' | 
+                                    trialType == 'noBlink' | 
+                                    trialType == 'new') 
+
+GrandConf %>% filter(trialType == 'blink' | 
+                       trialType == 'noBlink' | 
+                       trialType == 'new') %>%
+  fitUVSD()
+
+# bootstrap analysis of pooled data: ############################
+
+allBlinkNoBlinkTrials = data.frame('type' = rep('a', sum(blinkNoBlinkConf$count)),
+                                   'conf' = rep(1, sum(blinkNoBlinkConf$count)))
+blinki = 1
+for(rowi in 1:dim(blinkNoBlinkConf)[1]){
+  curN = blinkNoBlinkConf$count[rowi]
+  allBlinkNoBlinkTrials$type[blinki:(blinki+curN-1)] = 
+                      rep(blinkNoBlinkConf$trialType[rowi],curN)
+  allBlinkNoBlinkTrials$conf[blinki:(blinki+curN-1)] = 
+    rep(blinkNoBlinkConf$conf[rowi],curN)
+  blinki = blinki + curN
+}
+trialCount = sum(blinkNoBlinkConf$count)
+bootRes = data.frame('dBlink' = rep(0, 1000), 
+                     'dnoBlink' = rep(0, 1000))
+for(booti in 1:1000) {
+  curSamp = sample(trialCount, 2000)
+  curSamp = allBlinkNoBlinkTrials[curSamp,] 
+  curSamp.df = blinkNoBlinkConf
+  for(rowi in 1:dim(curSamp.df)[1]){
+    curSamp.df$count[rowi] = sum(curSamp$type == curSamp.df$trialType[rowi] &
+          curSamp$conf == curSamp.df$conf[rowi])
+  }
+  tmp = fitUVSD(curSamp.df)
+  bootRes$dBlink[booti] = tmp$blink_d
+  bootRes$dnoBlink[booti] = tmp$noBlink_d
+  
+}
+
+  longBoot = bootRes %>% pivot_longer(cols = names(bootRes), 
+                                      names_to = 'condition',
+                                      values_to = 'd')
+  
+  longBoot %>% ggplot(aes(x = d, group = condition, color = condition)) + geom_freqpoly()
+
+  t.test(bootRes$dBlink - bootRes$dnoBlink)
+  
+  (mean(bootRes$dBlink) - mean(bootRes$dnoBlink)) / sd(longBoot$d)
+  sum(bootRes$dBlink>bootRes$dnoBlink)
+
+
+
+#plot accuracy across blocks, not in paper #####################################
+plotDat <- subSums[,(grepl("AB_lag", names(subSums)) | 
+                  grepl("ID", names(subSums)) | 
+                    grepl("ABmag", names(subSums))) &
+                  !grepl("prac", names(subSums))] %>% 
+        pivot_longer(cols = contains("AB_lag"),
+                         names_to = c("block", 'lag', 'var'),
+                         names_pattern = "([1-6])_AB_lag([1-5])_(.*)",
+                         values_to = 'propCor')
+
+plotDat$dualTarg = as.logical(as.numeric(plotDat$block) %% 2)
+
+plotDatCollapsed <- plotDat %>% #filter(block <3) %>%
+          group_by(dualTarg, ID, lag, var) %>%
+          reframe(meanVal = mean(propCor), ABmag = ABmag)
+
+
+plotDat %>% filter(var == "T1") %>%
+  ggplot(aes(x = block, y = propCor, group = ID)) +
+  geom_point(size = 5) + 
+  geom_line(linewidth = 3, alpha = .2) + 
+  facet_grid(~lag)+
+  ggtitle("T1 accuracy by lag over blocks")
+
+plotDat %>% filter(var == "T2T1", !is.na(propCor)) %>%
+  ggplot(aes(x = block, y = propCor, group = ID, color = ABmag)) +
+  geom_point(size = 5) + 
+  geom_line(linewidth = 1) + 
+  facet_grid(~lag)+
+  ggtitle("T2|T1 accuracy by lag over blocks")
+
+dualLabs = c('single', 'dual')
+plotDatCollapsed$dualTarg = dualLabs[as.numeric(plotDatCollapsed$dualTarg)+1]
+
+## MAIN T1 DETECTION PLOT ###########################################################
+
+#lag 1 v lag 5 ignoring dual/single for T1 detection: 
+statDat <- plotDatCollapsed %>% filter(var == 'T1') %>%
+  group_by(ID, lag, var) %>% # Pass column names directly
+  summarize(meanVal = mean(meanVal, na.rm = T), .groups = "drop") 
+
+#No difference in T1 detection between single v. dual target
+t.test(statDat$meanVal[statDat$lag == 1 &
+                         statDat$var == 'T1']-
+       statDat$meanVal[statDat$lag == 5 &
+                         statDat$var == 'T1'])
+
+mean(statDat$meanVal[statDat$lag == 1 &
+                       statDat$var == 'T1'])
+mean( statDat$meanVal[statDat$lag == 5 &
+                        statDat$var == 'T1'])
+
+
+
+meanVals <- plotDatCollapsed %>% filter(var == 'T1', dualTarg == 'single') %>%
+  group_by(lag) %>% 
+  summarise(mean_lag = mean(meanVal), 
+            ste_lag = sd(meanVal)/sqrt(26)* qt(.975, 26))
+meanVals$ID = 99
+
+png(paste0('G:\\My Drive\\GitHub\\AB_pic_analysis\\Figs\\' , "dualTarg_singleT1.png"),         # File name
+    width=500, height=500)
+plotDatCollapsed %>% filter(var == 'T1', dualTarg == 'single') %>% 
+  ggplot(aes(x = lag, y = meanVal, group = ID)) +
+  geom_line( position = position_dodge(.2), size = 1, alpha = .15) + 
+  geom_point( position = position_dodge(.2)) +
+  scale_x_discrete(labels = c('1','5')) +
+  scale_y_continuous(breaks = seq(.2, 1.0, .1), limits = c(.2,1)) +
+  theme_classic() +
+  theme(axis.line = element_line(color = 'black', size = 3),
+        axis.ticks = element_line(colour = "black", size = 2),
+        axis.ticks.length=unit(-.25, "cm"),
+        text = element_text(size = 20)) + 
+  geom_line(data = meanVals, aes(x= lag, y = mean_lag), linewidth = 4) + 
+  geom_point(data = meanVals, aes(x= lag, y = mean_lag), size = 10) +
+  geom_errorbar(data = meanVals, aes(x=lag, y = mean_lag, 
+                                     ymin = mean_lag - ste_lag,
+                                     ymax = mean_lag + ste_lag),
+                width = .5, linewidth = 2) + 
+  ylab('T1 detection p(T1)')
+# rect(1, 5, 3, 7, col="white")
+dev.off()
+
+
+## MAIN AB EFFECT PLOT #########################################################################
+
+meanVals <- plotDatCollapsed %>% filter(var == 'T2T1', dualTarg == 'dual') %>%
+  group_by(lag) %>% 
+  summarise(mean_lag = mean(meanVal), 
+            ste_lag = sd(meanVal)/sqrt(26)* qt(.975, 26))
+meanVals$ID = 99
+
+png(paste0('G:\\My Drive\\GitHub\\AB_pic_analysis\\Figs\\' , "dualTarg_dualT2T1.png"),         # File name
+    width=500, height=500)
+plotDatCollapsed %>% filter(var == 'T2T1', dualTarg == 'dual') %>% 
+  ggplot(aes(x = lag, y = meanVal, group = ID)) +
+  geom_line( position = position_dodge(.2), size = 1, alpha = .15) + 
+  geom_point( position = position_dodge(.2)) +
+  scale_x_discrete(labels = c('1','5')) +
+  scale_y_continuous(breaks = seq(.2, 1.0, .1), limits = c(.2,1)) +
+  theme_classic() +
+  theme(axis.line = element_line(color = 'black', size = 3),
+        axis.ticks = element_line(colour = "black", size = 2),
+        axis.ticks.length=unit(-.25, "cm"),
+        text = element_text(size = 20)) + 
+  geom_line(data = meanVals, aes(x= lag, y = mean_lag), linewidth = 4) + 
+  geom_point(data = meanVals, aes(x= lag, y = mean_lag), size = 10) +
+  geom_errorbar(data = meanVals, aes(x=lag, y = mean_lag, 
+                                     ymin = mean_lag - ste_lag,
+                                     ymax = mean_lag + ste_lag),
+                width = .5, linewidth = 2) + 
+  ylab('T2 detection p(T2|T1)')
+# rect(1, 5, 3, 7, col="white")
+dev.off()
+
+
+#lag 1 v lag 5 ignoring dual/single for T1 detection: 
+statDat <- plotDatCollapsed %>% filter(var == 'T2T1') %>%
+  group_by(ID, lag, var) %>% # Pass column names directly
+  summarize(meanVal = mean(meanVal, na.rm = T), .groups = "drop") 
+
+#there is a small but significant difference in T1 detection between single v. dual target
+t.test(statDat$meanVal[statDat$lag == 1]-
+         statDat$meanVal[statDat$lag == 5])
+
+mean(statDat$meanVal[statDat$lag == 1 ])
+mean( statDat$meanVal[statDat$lag == 5 ])
+
+####### catch trial performance ########################################
+
+FArates = rowMeans(subSums[,grepl('FA', names(subSums))][,-13], na.rm = T)
+mean(FArates)
+sd(FArates)
+
+##################################overall memory performance single v dual target
+plotDat <- subSums[,c("ID", "dual_d", "single_d", "ABmag")] %>%
+  pivot_longer(cols = ends_with("_d"), 
+               names_to = "target",
+               names_pattern = "(single|dual)_d",
+               values_to = "d")
+
+t.test(plotDat$d[plotDat$target=='dual']-plotDat$d[plotDat$target =='single'])
+
+sum(plotDat$d[plotDat$target=='dual']<plotDat$d[plotDat$target =='single'])
+
+#### considering lag X target interactions ###################################
+plotDat <- subSums[,c("ID", "dualLag1_d", "singleLag1_d", 'dualLag5_d',
+                      'singleLag5_d', "ABmag")] %>%
+  pivot_longer(cols = ends_with("_d"), 
+               names_to = c("target", 'lag'),
+               names_pattern = "(single|dual)(Lag1|Lag5)_d",
+               values_to = "d")
+
+lagCond.lm = lmer(d~target*lag + (1|ID), data = plotDat)
+summary(lagCond.lm)
+
+
+t.test(plotDat$d[plotDat$target=='dual'& plotDat$lag == 'Lag1']-
+         plotDat$d[plotDat$target =='single'& plotDat$lag == 'Lag1'])
+
+
+t.test(plotDat$d[plotDat$target=='dual'& plotDat$lag == 'Lag5']-
+         plotDat$d[plotDat$target =='single'& plotDat$lag == 'Lag5'])
+
+
+t.test(plotDat$d[plotDat$target=='single'& plotDat$lag == 'Lag1']-
+         plotDat$d[plotDat$target =='single'& plotDat$lag == 'Lag5'])
+
+sum(plotDat$d[plotDat$target=='dual']<plotDat$d[plotDat$target =='single'])
+
+
+plotDat <- subSums[,c("ID", "dualLag1_d", "singleLag1_d", "ABmag")] %>%
+  pivot_longer(cols = ends_with("_d"), 
+               names_to = c("target"),
+               names_pattern = "(single|dual)Lag1_d",
+               values_to = "d")
+
+meanVals <- plotDat  %>%
+  group_by(target) %>% 
+  summarise(mean_lag = mean(d), 
+            ste_lag = sd(d)/sqrt(26)* qt(.975, 26))
+meanVals$ID = 99
+
+png(paste0(repoPath, '/Figs/' , "dualTarg_lag1_dualSingMem.png"),         # File name
+    width=500, height=500)
+plotDat %>% 
+  ggplot(aes(x = target, y = d, group = ID)) +
+  geom_line( position = position_dodge(.2), size = 1, alpha = .15) + 
+  geom_point( position = position_dodge(.2)) +
+  scale_x_discrete(labels = c('dual','single')) +
+  scale_y_continuous(breaks = seq(0, 2.5, .5), limits = c(0,2.5)) +
+  theme_classic() +
+  theme(axis.line = element_line(color = 'black', size = 3),
+        axis.ticks = element_line(colour = "black", size = 2),
+        axis.ticks.length=unit(-.25, "cm"),
+        text = element_text(size = 20)) + 
+  # geom_line(data = meanVals, aes(x= target, y = mean_lag), linewidth = 4) + 
+  geom_point(data = meanVals, aes(x= target, y = mean_lag), size = 10) +
+  geom_errorbar(data = meanVals, aes(x=target, y = mean_lag, 
+                                     ymin = mean_lag - ste_lag,
+                                     ymax = mean_lag + ste_lag),
+                width = .5, linewidth = 2) + 
+  ylab('memory')
+# rect(1, 5, 3, 7, col="white")
+dev.off()
+
+#lag 5 memory: 
+plotDat <- subSums[,c("ID", "dualLag5_d", "singleLag5_d", "ABmag")] %>%
+  pivot_longer(cols = ends_with("_d"), 
+               names_to = "target",
+               names_pattern = "(single|dual)Lag5_d",
+               values_to = "d")
+
+
+meanVals <- plotDat  %>%
+  group_by(target) %>% 
+  summarise(mean_lag = mean(d), 
+            ste_lag = sd(d)/sqrt(26)* qt(.975, 26))
+meanVals$ID = 99
+
+png(paste0(repoPath, '/Figs/' , "dualTarg_lag5_dualSingMem.png"),         # File name
+    width=500, height=500)
+plotDat %>% 
+  ggplot(aes(x = target, y = d, group = ID)) +
+  geom_line( position = position_dodge(.2), size = 1, alpha = .15) + 
+  geom_point( position = position_dodge(.2)) +
+  scale_x_discrete(labels = c('dual','single')) +
+  scale_y_continuous(breaks = seq(0, 2.5, .5), limits = c(0,2.5)) +
+  theme_classic() +
+  theme(axis.line = element_line(color = 'black', size = 3),
+        axis.ticks = element_line(colour = "black", size = 2),
+        axis.ticks.length=unit(-.25, "cm"),
+        text = element_text(size = 20)) + 
+  # geom_line(data = meanVals, aes(x= target, y = mean_lag), linewidth = 4) + 
+  geom_point(data = meanVals, aes(x= target, y = mean_lag), size = 10) +
+  geom_errorbar(data = meanVals, aes(x=target, y = mean_lag, 
+                                     ymin = mean_lag - ste_lag,
+                                     ymax = mean_lag + ste_lag),
+                width = .5, linewidth = 2) + 
+  ylab('memory')
+# rect(1, 5, 3, 7, col="white")
+dev.off()
+
+#### key memory relationship to AB ###############################
+
+png(paste0(repoPath, '/Figs/' , "lag1SingleMem_ABmag.png"),         # File name
+    width=500, height=500)
+ggplot(subSums, aes(x = singleLag1_d, y = ABmag)) + geom_point(size = 5) +
+  geom_smooth(method = "lm", se = T, color = 'black') +
+  theme_classic() +
+  theme(axis.line = element_line(color = 'black', size = 3),
+        axis.ticks = element_line(colour = "black", size = 2),
+        axis.ticks.length=unit(-.25, "cm"),
+        text = element_text(size = 20))
+dev.off()
+cor.test(subSums$ABmag, subSums$singleLag1_d)

@@ -65,12 +65,13 @@ plotDat %>% ggplot(aes(x=lag, y=value, group = subID)) +
   # rect(1, 5, 3, 7, col="white")
   dev.off()
   
+  #apply linear mixed effects model
   anova_result <- lmer(value ~ lag + (1 | subID), data = plotDat)
   anova(anova_result)
   
   
   ####      Figure 2a #######################################################
-
+# T1 detection accuracy 
   plotDat <- df[,!grepl( 'T2.T1',colnames(df)) & grepl('T1',colnames(df))] 
   plotDat$subID <- seq(1,length(plotDat[,1]), 1)
   plotDat <- plotDat %>%
@@ -108,12 +109,15 @@ plotDat %>% ggplot(aes(x=lag, y=value, group = subID)) +
   # rect(1, 5, 3, 7, col="white")
   dev.off()
   
+  #linear mixed effects model 
   anova_result <- lmer(value ~ lag + (1 | subID), data = plotDat)
   anova(anova_result)
   
 
 #I want the ending stim presentation time
 df$stimTim = unlist(lapply(allDat, function(x) x$curStimTim[240]))
+print(paste0('the mean ending stim presentation time was: ', round(mean(df$stimTim),2)))
+#hard code to average over different T1 measures at different lags
 df$allT1 = rowMeans(df[,seq(6,26,3)])
 
 
@@ -137,7 +141,10 @@ mainDesign %>%
                         
                         
 
-
+#### Experiment 2 plotting and final analysis #################################
+#NOTE: summary variables were extracted using python 
+#see notebook: ABmemNotebook.ipynb 
+#also see helper python functions: AB_mem_helper_funcs.py
 #bring in the data for the new version of the experiment: 
 df = read.csv(paste0(repoPath, '/Exp2Summary.csv'))
 #implement criterion 1:
@@ -186,19 +193,19 @@ ABmainTable %>%
            footnote_as_chunk = T, title_format = c("italic", "underline")
   )
 
+# 
+# T2T1.plotDat = df[,c("X", "Lag1_T1P_T2P_T2_T1", "Lag5_T1P_T2P_T2_T1")] %>%
+#   pivot_longer(cols = c("Lag1_T1P_T2P_T2_T1", "Lag5_T1P_T2P_T2_T1"),
+#                names_to = "lag", 
+#                values_to = "value")
+# 
+# 
+# T2T1.plotDat %>% ggplot(aes(x=lag, y=value)) +
+#   geom_boxplot() +
+#   geom_line(aes(group = X), position = position_dodge(.2)) + 
+#   geom_point(aes(group = X), position = position_dodge(.2))
 
-T2T1.plotDat = df[,c("X", "Lag1_T1P_T2P_T2_T1", "Lag5_T1P_T2P_T2_T1")] %>%
-  pivot_longer(cols = c("Lag1_T1P_T2P_T2_T1", "Lag5_T1P_T2P_T2_T1"),
-               names_to = "lag", 
-               values_to = "value")
-
-
-T2T1.plotDat %>% ggplot(aes(x=lag, y=value)) +
-  geom_boxplot() +
-  geom_line(aes(group = X), position = position_dodge(.2)) + 
-  geom_point(aes(group = X), position = position_dodge(.2))
-
-#### improved Figure 2c ####################################
+#### plot T1 detection accuracy for Exp 2 ####################################
 
 plotDat <- df[,c("Lag1_T1P_T2P_T1", "Lag5_T1P_T2P_T1")] 
 plotDat$subID <- seq(1,length(plotDat[,1]), 1)
@@ -240,7 +247,7 @@ dev.off()
 
 t.test(df$Lag1_T1P_T2P_T1 - df$Lag5_T1P_T2P_T1)
 
-#### improved Figure 2d ####################################
+#### plot T2|T1 accuracy to show main AB effect ####################################
 
 plotDat <- df[,c("Lag1_T1P_T2P_T2_T1", "Lag5_T1P_T2P_T2_T1")] 
 plotDat$subID <- seq(1,length(plotDat[,1]), 1)
@@ -281,56 +288,9 @@ dev.off()
 
 t.test(df$Lag1_T1P_T2P_T2_T1 - df$Lag5_T1P_T2P_T2_T1)
 
-# setwd("C:\\Users\\pc1aod\\Documents\\GitHub\\AB_pic_analysis\\Figs") 
-# #Attentional Blink main phenomenon 
-# png("main_AB.png",         # File name
-#     width=1024, height=768)# Color
-# plot(c(0), axes = F, ylab = "T2|T1", xlab = "lag", cex.lab = 1, ylim=c(.5, 1), xlim=c(.8,2.05))
-# meanVals = c(mean(df$Lag1_T1P_T2P_T2_T1), mean(df$Lag5_T1P_T2P_T2_T1))
-
-# sdVals = c(qt(.975, 52)*sd(df$Lag1_T1P_T2P_T2_T1)/sqrt(46), 
-#            qt(.975, 52)*sd(df$Lag5_T1P_T2P_T2_T1)/sqrt(46))
-# myLines(meanVals,sdVals,1)
-# axis(1, at=c(1:2), labels = c(1:2), pos = .5, lwd=15,  cex.axis = 1, tck = .03)
-# axis(1, at=c(-1,1), labels = F, pos = .5, lwd = 15, tck = 0)
-# axis(2, at=seq(.5,1,.1), labels= seq(.5,1,.1), pos = .8, lwd = 15, cex.axis = 1, tck = .03)
-# rect(1, 5, 3, 7, col="white")
-# dev.off()
-# #T1 accuracy check
-# png("main_T1.png",         # File name
-#     width=1024, height=768)# Color
-# plot(c(0), axes = F, ylab = "T2|T1", xlab = "lag", cex.lab = 1, ylim=c(.5, 1), xlim=c(.8,2.05))
-# meanVals = c(mean(df$Lag1_T1P_T2P_T1), mean(df$Lag5_T1P_T2P_T1))
-# t.test(df$Lag1_T1P_T2P_T1 - df$Lag5_T1P_T2P_T1)
-# sdVals = c(sd(df$Lag1_T1P_T2P_T1)/sqrt(46), 
-#            sd(df$Lag5_T1P_T2P_T1)/sqrt(46))
-# myLines(meanVals,sdVals,1)
-# axis(1, at=c(1:2), labels = c(1:2), pos = .5, lwd=15,  cex.axis = 1, tck = .03)
-# axis(1, at=c(-1,1), labels = F, pos = .5, lwd = 15, tck = 0)
-# axis(2, at=seq(.5,1,.1), labels= seq(.5,1,.1), pos = .8, lwd = 15, cex.axis = 1, tck = .03)
-# rect(1, 5, 3, 7, col="white")
-# dev.off()
-# #check they didn't just press at random
-# png("main_T1A.png",         # File name
-#     width=1024, height=768)# Color
-# plot(c(0), axes = F, ylab = "T2|T1", xlab = "lag", cex.lab = 1, ylim=c(.5, 1), xlim=c(.8,2.05))
-# meanVals = c(mean(df$Lag1_T1A_T2P_T1), mean(df$Lag5_T1A_T2P_T1))
-# t.test(df$Lag1_T1P_T2P_T1 - df$Lag5_T1P_T2P_T1)
-# sdVals = c(qt(.975, 52)*sd(df$Lag1_T1P_T2P_T1)/sqrt(46), 
-#            qt(.975, 52)*sd(df$Lag5_T1P_T2P_T1)/sqrt(46))
-# myLines(meanVals,sdVals,1)
-# axis(1, at=c(1:2), labels = c(1:2), pos = .5, lwd=15,  cex.axis = 1, tck = .03)
-# axis(1, at=c(-1,1), labels = F, pos = .5, lwd = 15, tck = 0)
-# axis(2, at=seq(.5,1,.1), labels= seq(.5,1,.1), pos = .8, lwd = 15, cex.axis = 1, tck = .03)
-# rect(1, 5, 3, 7, col="white")
-# dev.off()
-
-#evaluating output from 3 distribution model
-t.test(df$DistALL_UVSD_d - df$TargALL_UVSD_d)
-t.test(df$DistALL_UVSD_s - df$TargALL_UVSD_s)
 
 
-#### improved Figure 3A #######################################################
+#### memory for targets versus distractors #######################################################
 plotDat <- df[,c("DistALL_UVSD_d", "TargALL_UVSD_d")] 
 plotDat$subID <- seq(1,length(plotDat[,1]), 1)
 plotDat <- plotDat %>%
@@ -367,42 +327,17 @@ plotDat %>% ggplot(aes(x=type, y=value, group = subID)) +
 # rect(1, 5, 3, 7, col="white")
 dev.off()
 
-
+#evaluating output from 3 distribution model
+t.test(df$DistALL_UVSD_d - df$TargALL_UVSD_d)
 
 ######
 
 
 
 
-# 
-# 
-# 
-# plotvals = c(mean(df$DistALL_UVSD_d), mean(df$TargALL_UVSD_d))
-# SDvals = c(sd(df$DistALL_UVSD_d)/sqrt(46), sd(df$TargALL_UVSD_d)/sqrt(46))
-# png("main_distTargMem.png",         # File name
-#     width=1024, height=768) # Color
-# 
-# twoDistBarPlot(plotvals, SDvals)
-# 
-# 
-# rect(1, 5, 3, 7, col="white")
-# dev.off()
-
-#evaluating output from 5 distribution model
-t.test(df$L1blink_UVSD_d - df$L1cor_UVSD_d)
-t.test(df$L1blink_UVSD_s - df$L1cor_UVSD_s)
 
 
-t.test(df$L1blink_UVSD_d - df$L5_UVSD_d)
-t.test(df$L1cor_UVSD_d - df$L5_UVSD_d)
-
-#does the lagMem effect predict the blinkMag? Nope
-(df$L1cor_UVSD_d + df$L1blink_UVSD_d) / 2 -> df$L1_d_mean
-df$lagMem = df$L1_d_mean - df$L5_UVSD_d
-df %>% ggplot(aes(x = lagMem, y = blinkMag)) + geom_point()
-
-
-#### improved Figure 3B #######################################################
+#### Compare memory for blink, non-blink, and lag 5 targets #######################################################
 plotDat <- df[,c("L1blink_UVSD_d", "L1cor_UVSD_d", "L5_UVSD_d")] 
 plotDat$subID <- seq(1,length(plotDat[,1]), 1)
 plotDat <- plotDat %>%
@@ -439,50 +374,34 @@ plotDat %>% ggplot(aes(x=type, y=value, group = subID)) +
 # rect(1, 5, 3, 7, col="white")
 dev.off()
 
+#apply linear mixed effects model: 
+memory.lm = lmer(value~type+(1|subID), data = plotDat)
+anova(memory.lm)
 
-########
+#pairwise tests
+t.test(df$L1blink_UVSD_d - df$L1cor_UVSD_d)
 
+mean(df$L1blink_UVSD_d - df$L1cor_UVSD_d) / sd(df$L1blink_UVSD_d - df$L1cor_UVSD_d)
 
-plotvals = c(mean(df$L1blink_UVSD_d), mean(df$L1cor_UVSD_d), mean(df$L5_UVSD_d))
-SDvals = c( sd(df$L1blink_UVSD_d)/sqrt(46), 
-            sd(df$L1cor_UVSD_d)/sqrt(46),
-            sd(df$L5_UVSD_d)/sqrt(46))
-png("main_blinkCorMem.png",         # File name
-    width=1024, height=768) # Color
+t.test(df$L1cor_UVSD_d - df$L5_UVSD_d)
+t.test(df$L1blink_UVSD_d - df$L5_UVSD_d)
 
+#does memory predict the AB magnitude? looking at it in several ways, 
+#and none indicate an effect
+(df$L1cor_UVSD_d + df$L1blink_UVSD_d) / 2 -> df$L1_d_mean
+df %>% ggplot(aes(x = L1_d_mean, y = blinkMag)) + geom_point()
 
-
-d.plotDat = df[,c("X", "L1blink_UVSD_d", "L1cor_UVSD_d", "L5_UVSD_d")] %>%
-  pivot_longer(cols = c("L1blink_UVSD_d", "L1cor_UVSD_d", "L5_UVSD_d"),
-               names_to = "type", 
-               values_to = "value")
-
-
-d.plotDat %>% ggplot(aes(x=type, y=value)) +
-  geom_boxplot() +
-  geom_point(aes(group = X), position = position_dodge(.2)) +
-  geom_line(aes(group = X), position = position_dodge(.2), size = 1, alpha = .1) +
-  theme_classic() +
-  theme(axis.line = element_line(color = 'black', size = 3),
-        axis.ticks = element_line(colour = "black", size = 2),
-        axis.ticks.length=unit(-.25, "cm"),
-        text = element_text(size = 20))
-
-library(rstatix)
-res.aov <- d.plotDat %>% anova_test(dv = value, wid = X, within = type)  
+(df$L1cor_UVSD_d + df$L1blink_UVSD_d) / 2 -> df$L1_d_mean
+df$lagMem = df$L1_d_mean - df$L5_UVSD_d
+df %>% ggplot(aes(x = lagMem, y = blinkMag)) + geom_point()
 
 
+cor(df$blinkMag, df$TargALL_UVSD_d)
+df$blinkMemDiff = df$L1blink_UVSD_d - df$L1cor_UVSD_d
+df %>% ggplot(aes(x = blinkMemDiff, y= blinkMag)) +
+  geom_point()
 
-
-
-
-
-
-twoDistBarPlot(plotvals, SDvals)
-
-
-rect(1, 5, 3, 7, col="white")
-dev.off()
+#### overall table of summary values for memory performance ####
 
 memoryTable = data.frame('targetType' = c('target', 'T1|blink', 'T1|T2', 'lag5', 'dist', 'novel'),
                          'accuracy' = rep('', 6), 
@@ -536,13 +455,28 @@ memoryTable %>%
            general_title = "Table 3: ",
            footnote_as_chunk = T, title_format = c("italic", "underline")
   )
-t.test(df$L1cor_UVSD_d-df$L5_UVSD_d)
-t.test(df$Lag1_T1P_T2P_T2_T1, mu = .5)
-#Is there a correlation between overall target memory and attentional blink magnitude? 
 
 
-cor(df$blinkMag, df$TargALL_UVSD_d)
-df$blinkMemDiff = df$L1blink_UVSD_d - df$L1cor_UVSD_d
-df %>% ggplot(aes(x = blinkMemDiff, y= blinkMag)) +
+#### Stimulus characteristic question ###########################
+#Was there something different about the T1 images on blink trials versus non-blink trials? 
+#Specifically, if low familiarity images require more time to process, then 
+#they might be more likely to result in blinks. 
+
+#There is a significant difference in familairity of T1 images from blink trials
+#versus non-blink trials, but the mean difference is small
+t.test(df$blinkFam - df$nonBlinkFam)
+
+mean(df$blinkFam - df$nonBlinkFam) / sd(df$blinkFam - df$nonBlinkFam)
+
+mean(df$blinkFam)
+mean(df$nonBlinkFam)
+df$blinkMemEffect = df$L1blink_UVSD_d - df$L1cor_UVSD_d
+df$blinkFamEffect = df$blinkFam - df$nonBlinkFam
+df %>% ggplot(aes(x = blinkFamEffect, y = blinkMemEffect)) + 
   geom_point()
+cor.test(df$blinkFamEffect, df$blinkMemEffect)
+
+#individuals more affected by familiarity of T1 images were not more likely to 
+#have bigger blink memory effects
+
 

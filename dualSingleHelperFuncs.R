@@ -1,6 +1,6 @@
 #helper functions for dual/single AB task 
 
-readAB_blk <- function(curBlk){
+readAB_blk <- function(curBlk, bossNorms, bossNorms2){
   #remove extra columns
   curBlk <- curBlk[,colSums(is.na(curBlk)) != length(curBlk[,1])]
   curBlk <- curBlk[,colSums(apply(curBlk, c(1,2), function(x) identical("", x)))
@@ -17,6 +17,8 @@ readAB_blk <- function(curBlk){
   curBlk$T2cor = 0
   curBlk$T1pnts = 0 
   curBlk$T2pnts = 0
+  curBlk$T1Fam = 0
+  curBlk$T1Fam = sapply(curBlk$T1_Identity, function(X){findT1Fam(X, bossNorms, bossNorms2)})
   #make a correct / incorrect column for T1 and T2 depending on trial type
   for(t in 1:dim(TTs)[1]){
     idx = which(curBlk$T1_PA==TTs$T1[t] & 
@@ -61,6 +63,16 @@ readAB_blk <- function(curBlk){
     outDat[t, 'trialCount'] = length(idx)
     
   }
+  
+  
+  
+  outDat$blinkT1Fam = mean(curBlk$T1Fam[curBlk$T1_PA==1 & curBlk$T2_PA==1 &
+                                          curBlk$T1cor == 1 & curBlk$T2cor ==0], 
+                           na.rm = T)
+  outDat$nonBlinkT1Fam = mean(curBlk$T1Fam[curBlk$T1_PA==1 & curBlk$T2_PA==1 &
+                                          curBlk$T1cor == 1 & curBlk$T2cor ==1], 
+                           na.rm = T)
+  
   outDat$pnts = sum(curBlk$T1pnts) + sum(curBlk$T2pnts)
   if(sum(grepl('PROLIFIC_PID', names(curBlk)))>0){
     outDat$subID = curBlk$PROLIFIC_PID[1]
@@ -269,19 +281,28 @@ fitUVSD <- function(conf){
   
   
   predVals = uvsdPred(newParams)
+  nullPred = array(data = 1/numConf, dim = dim(predVals))
+ 
   trialCounts = matrix(nrow = numConf, ncol = numTypes)
   for(tt in 1:length(types)){
     trialCounts[,tt] = conf$count[conf$trialType==types[tt]]
   }
   trialCounts[trialCounts==0] = 1/sum(trialCounts)
   expected = predVals * matrix(rep(colSums(trialCounts),numConf), nrow = numConf, ncol = numTypes, byrow = T)
+  #correct for huge deviations caused by very small values:
+  expected[expected<1/sum(trialCounts)] = 1/sum(trialCounts)
+  expectedNull = nullPred * matrix(rep(colSums(trialCounts),numConf), nrow = numConf, ncol = numTypes, byrow = T)
+  #correct for huge deviations caused by very small values:
+  expectedNull[expectedNull<1/sum(trialCounts)] = 1/sum(trialCounts)
   chiVal = sum((trialCounts - expected)^2 / expected)
+  chiNull = sum((trialCounts - expectedNull)^2 / expectedNull)
   pval = 1 - pchisq(chiVal, (dim(expected)[1]-1)*(dim(expected)[2]-1))
   
   outStats = data.frame()
   outStats[1,'chi'] = chiVal
   outStats[1, 'chiP'] = pval
-  print(params)
+  outStats[1, 'varExp'] = 1 - (chiVal / chiNull)
+  
   for(tt in 1:length(types)){
     outStats[1,paste0(types[tt], '_d')] = params[numConf+(tt-1)*2] 
     outStats[1,paste0(types[tt], '_s')] = params[(numConf+(tt-1)*2)+1] 
@@ -318,9 +339,26 @@ simpConf <- function(conf, confSet){
   return(outConf)
 }
 
+findT1Fam <- function(name, bossNorms, bossNorms2){
+  idx = which(bossNorms['FILENAME'] == name)
+
+if(any(is.nan(bossNorms$Fam_Mean[idx]))){
+  idx = which(bossNorms2['FILENAME']==name)
+  fam = bossNorms2$Fam_Mean[idx]
+}else{
+  fam = bossNorms$Fam_Mean[idx]
+}
+if(length(fam) == 1){
+  fam = fam[1]
+}else{
+  fam = NaN
+}
+return(fam)
+}
 
 
-readABmemFile <- function(sub, numConf){
+
+readABmemFile <- function(sub, numConf, bossNorms, bossNorms2){
   rawDat = read.csv(sub)
   blkNames = unique(rawDat$TrialType)
   blkNames = blkNames[-1]
@@ -331,7 +369,7 @@ readABmemFile <- function(sub, numConf){
   for(ii in 1:length(blkNames)){
     curBlk = rawDat %>% filter(TrialType == blkNames[ii])
     if(grepl("AB", blkNames[ii])){
-      cbRes <- readAB_blk(curBlk) 
+      cbRes <- readAB_blk(curBlk, bossNorms, bossNorms2) 
       cbRes$blkName = blkNames[ii]
       #false alarm rates for T1 and T2 (1 - accuracy for target absent trials)
       T1FA =1 - sum(cbRes[cbRes$T1==0,'T1cor'] * 
@@ -349,6 +387,8 @@ readABmemFile <- function(sub, numConf){
       subjectSummary[1,paste0(blkNames[ii], '_lag5_T1')] = ppRes$T1cor[ppRes$L==5]
       subjectSummary[1,paste0(blkNames[ii], '_T1FA')] = T1FA
       subjectSummary[1,paste0(blkNames[ii], '_T2FA')] = T2FA
+      subjectSummary[1,paste0(blkNames[ii], '_T1blinkFam')] = cbRes$blinkT1Fam[1]
+      subjectSummary[1,paste0(blkNames[ii], '_T1nonblinkFam')] = cbRes$nonBlinkT1Fam[1]
       
       outDat[[ii]] = cbRes
     } else { 
@@ -378,23 +418,10 @@ readABmemFile <- function(sub, numConf){
       
       conf = simpConf(conf, numConf)
       
-      uvsdRes = fitUVSD(conf)
       
       outDat[[ii]] <- conf
       outDat[[ii]]$blkName = blkNames[ii]
-      subjectSummary[1,paste0(blkNames[ii], '_chi')] = uvsdRes$chi
-      subjectSummary[1,paste0(blkNames[ii], '_chip')] = uvsdRes$chiP
-      if(is.null(uvsdRes$blink_d)){
-        subjectSummary[1,paste0(blkNames[ii], '_blink_d')] = NA 
-      } else{
-        subjectSummary[1,paste0(blkNames[ii], '_blink_d')] = uvsdRes$blink_d
-      }
-      if(is.null(uvsdRes$noBlink_d)){
-        subjectSummary[1,paste0(blkNames[ii], '_noBlink_d')] = NA 
-      } else{
-        subjectSummary[1,paste0(blkNames[ii], '_noBlink_d')] = uvsdRes$noBlink_d
-      }
-      subjectSummary[1,paste0(blkNames[ii], '_lag5_d')] = uvsdRes$lag5_d
+      
       
     }
     subjectSummary[1,paste0(blkNames[ii], '_pnts')] = outDat[[ii]]$pnts[1]
