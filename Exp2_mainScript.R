@@ -244,7 +244,8 @@ plotDat %>% ggplot(aes(x=lag, y=value, group = subID)) +
 # rect(1, 5, 3, 7, col="white")
 dev.off()
 
-
+lag.lm = lmer(value ~ lag + (1|subID), data= plotDat)
+summary(lag.lm)
 t.test(df$Lag1_T1P_T2P_T1 - df$Lag5_T1P_T2P_T1)
 
 #### plot T2|T1 accuracy to show main AB effect ####################################
